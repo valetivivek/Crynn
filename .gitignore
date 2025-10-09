@@ -1,0 +1,40 @@
+# Crynn Rust workspace .gitignore
+
+# Compiled files
+/target/
+**/*.rlib
+
+# Executables and logs
+*.exe
+*.log
+*.out
+*.stackdump
+
+# Temporary files
+*.tmp
+*.swp
+*.bak
+*.old
+
+# Rust/Cargo metadata
+**/Cargo.lock
+/.cargo/
+.cargo/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.code-workspace
+
+# macOS metadata
+.DS_Store
+
+# Windows metadata
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Build scripts and test output
+build/scripts/*.log
+build/output/
+bench_results/
