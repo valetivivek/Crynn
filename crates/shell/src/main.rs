@@ -9,9 +9,16 @@ use anyhow::Result;
 
 
 // setting the path where the firefox esr is located to launch the engine
+/*
+================================================================================================
+NOTE: Have to change the path based on its location using the below one cuz im on college pc lol
+================================================================================================
+*/
 fn firefox_path() -> PathBuf {
     PathBuf::from(r"C:\Users\valeti.v\AppData\Local\Mozilla Firefox\firefox.exe")
 }
+
+
 // creating a profile for the crynn for launching the firefox using crynn preferences
 fn firefox_profile_path() -> PathBuf {
     let dir = std::env::temp_dir().join("crynn_profile");
@@ -36,7 +43,7 @@ async fn main() -> Result<()> {
             "--remote-debugging-port=9222",
             "--no-remote",
             "--marionette",
-            "--headless", // Remove if you want visible window
+            "--headless", 
             "--profile",
         ])
         .arg(profile)
