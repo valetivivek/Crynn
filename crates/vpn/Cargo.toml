@@ -1,0 +1,7 @@
+﻿[package]
+name = "crynn-vpn"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
