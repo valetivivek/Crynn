@@ -5,11 +5,6 @@ use std::collections::HashMap;
 use std::time::Duration;
 use url::Url;
 
-pub mod http2;
-pub mod http3;
-pub mod dns;
-pub mod proxy;
-
 // Module implementations are inline below
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,13 +192,13 @@ impl NetworkManager {
             .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
             .collect();
         let body = response.bytes().await?.to_vec();
-        let url = url.clone();
+        let response_url = request.url.clone();
 
         Ok(NetworkResponse {
             status,
             headers,
             body,
-            url,
+            url: response_url,
             protocol: Protocol::Http1_1,
         })
     }
