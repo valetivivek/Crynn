@@ -4,12 +4,14 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
-egui = "0.27"
-eframe = "0.27"  # egui framework for easy window management
+egui = "0.33"  # Updated for macOS Sequoia compatibility (winit 0.30+)
+eframe = { version = "0.33", default-features = false, features = ["wgpu"] }  # Use wgpu renderer with updated winit for macOS Sequoia
 url = "2.5"  # for URL parsing
 reqwest = { version = "0.11", features = ["json"] }  # for HTTP requests
 tokio = { version = "1.0", features = ["full"] }  # async runtime
 anyhow = "1.0"
+
+
 
 # Crynn internal crates
 crynn-gecko-ffi = { path = "../gecko_ffi" }

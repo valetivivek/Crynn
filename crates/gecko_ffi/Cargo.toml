@@ -4,7 +4,8 @@ version = "0.0.1"
 edition = "2021"
 
 [lib]
-crate-type = ["staticlib", "cdylib"]
+name = "crynn_gecko_ffi"
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
 libc = "0.2"
@@ -13,3 +14,4 @@ anyhow = "1.0"
 [build-dependencies]
 bindgen = "0.69"
 cc = "1.0"
+pkg-config = "0.3"

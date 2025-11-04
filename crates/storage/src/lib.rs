@@ -340,6 +340,15 @@ pub mod cache {
 // Include other modules
 mod cookies {
     use super::*;
+    use serde::{Deserialize, Serialize};
+    use url::Url;
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub enum SameSite {
+        None,
+        Lax,
+        Strict,
+    }
 
     pub struct CookieManager {
         pool: SqlitePool,
@@ -347,6 +356,7 @@ mod cookies {
 
     impl CookieManager {
         pub async fn new(pool: SqlitePool) -> Result<Self> {
+            // Update schema to include SameSite and last_accessed
             sqlx::query(
                 r#"
                 CREATE TABLE IF NOT EXISTS cookies (
@@ -358,12 +368,23 @@ mod cookies {
                     expires_at TEXT,
                     secure BOOLEAN NOT NULL,
                     http_only BOOLEAN NOT NULL,
-                    created_at TEXT NOT NULL
+                    same_site TEXT DEFAULT 'Lax',
+                    created_at TEXT NOT NULL,
+                    last_accessed TEXT NOT NULL,
+                    UNIQUE(name, domain, path)
                 )
                 "#,
             )
             .execute(&pool)
             .await?;
+
+            // Add missing columns if they don't exist (migration)
+            let _ = sqlx::query("ALTER TABLE cookies ADD COLUMN same_site TEXT DEFAULT 'Lax'")
+                .execute(&pool)
+                .await;
+            let _ = sqlx::query("ALTER TABLE cookies ADD COLUMN last_accessed TEXT")
+                .execute(&pool)
+                .await;
 
             Ok(Self { pool })
         }
@@ -375,13 +396,169 @@ mod cookies {
             Ok(row.get::<i64, _>("count") as usize)
         }
 
+        /// Parse Set-Cookie header and create cookie entry with security enforcement
+        pub async fn set_cookie(&self, set_cookie_header: &str, request_url: &Url) -> Result<()> {
+            let cookie = self.parse_set_cookie(set_cookie_header, request_url)?;
+            
+            // Security: Warn if HTTPS cookie missing Secure flag
+            if request_url.scheme() == "https" && !cookie.secure {
+                println!("Warning: Cookie '{}' set on HTTPS but missing Secure flag", cookie.name);
+            }
+            
+            // Security: Default to SameSite=Lax if not specified
+            let same_site = match cookie.same_site {
+                SameSite::None => SameSite::Lax, // Default to Lax for security
+                s => s,
+            };
+            
+            sqlx::query(
+                r#"
+                INSERT OR REPLACE INTO cookies 
+                (name, value, domain, path, expires_at, secure, http_only, same_site, created_at, last_accessed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                "#,
+            )
+            .bind(&cookie.name)
+            .bind(&cookie.value)
+            .bind(&cookie.domain)
+            .bind(&cookie.path)
+            .bind(cookie.expires_at.map(|dt| dt.to_rfc3339()))
+            .bind(cookie.secure)
+            .bind(cookie.http_only)
+            .bind(serde_json::to_string(&same_site)?)
+            .bind(cookie.created_at.to_rfc3339())
+            .bind(Utc::now().to_rfc3339())
+            .execute(&self.pool)
+            .await?;
+            
+            Ok(())
+        }
+        
+        /// Get cookies for a request URL with security checks
+        pub async fn get_cookies(&self, request_url: &Url) -> Result<Vec<String>> {
+            let host = request_url.host_str()
+                .ok_or_else(|| anyhow::anyhow!("URL has no host"))?;
+            let scheme = request_url.scheme();
+            let path = request_url.path();
+            
+            let rows = sqlx::query(
+                r#"
+                SELECT name, value, secure, same_site
+                FROM cookies
+                WHERE (domain = ? OR domain LIKE ?)
+                AND path LIKE ?
+                AND (expires_at IS NULL OR expires_at > ?)
+                "#,
+            )
+            .bind(host)
+            .bind(format!(".{}", host))
+            .bind(format!("{}%", path))
+            .bind(Utc::now().to_rfc3339())
+            .fetch_all(&self.pool)
+            .await?;
+            
+            let mut cookie_strings = Vec::new();
+            
+            for row in rows {
+                let secure: bool = row.get("secure");
+                
+                // Security: Only send Secure cookies over HTTPS
+                if secure && scheme != "https" {
+                    continue;
+                }
+                
+                let name: String = row.get("name");
+                let value: String = row.get("value");
+                
+                cookie_strings.push(format!("{}={}", name, value));
+                
+                // Update last_accessed
+                sqlx::query("UPDATE cookies SET last_accessed = ? WHERE name = ? AND domain = ?")
+                    .bind(Utc::now().to_rfc3339())
+                    .bind(&name)
+                    .bind(host)
+                    .execute(&self.pool)
+                    .await?;
+            }
+            
+            Ok(cookie_strings)
+        }
+
+        fn parse_set_cookie(&self, header: &str, request_url: &Url) -> Result<CookieEntry> {
+            let parts: Vec<&str> = header.split(';').map(|s| s.trim()).collect();
+            let name_value = parts[0].split_once('=')
+                .ok_or_else(|| anyhow::anyhow!("Invalid Set-Cookie format"))?;
+            
+            let name = name_value.0.trim().to_string();
+            let value = name_value.1.trim().to_string();
+            
+            let mut domain = None;
+            let mut path = Some("/".to_string());
+            let mut expires_at = None;
+            let mut secure = false;
+            let mut http_only = false;
+            let mut same_site = SameSite::Lax;
+            
+            for part in parts.iter().skip(1) {
+                let part_lower = part.to_lowercase();
+                if part_lower.starts_with("domain=") {
+                    domain = Some(part[7..].trim().to_string());
+                } else if part_lower.starts_with("path=") {
+                    path = Some(part[5..].trim().to_string());
+                } else if part_lower == "secure" {
+                    secure = true;
+                } else if part_lower == "httponly" {
+                    http_only = true;
+                } else if part_lower.starts_with("samesite=") {
+                    same_site = match part[9..].trim().to_lowercase().as_str() {
+                        "none" => SameSite::None,
+                        "lax" => SameSite::Lax,
+                        "strict" => SameSite::Strict,
+                        _ => SameSite::Lax,
+                    };
+                }
+            }
+            
+            let domain = domain.unwrap_or_else(|| request_url.host_str().unwrap_or("").to_string());
+            let path = path.unwrap_or_else(|| request_url.path().to_string());
+            
+            // Security: Enforce Secure on HTTPS
+            if request_url.scheme() == "https" {
+                secure = true;
+            }
+            
+            Ok(CookieEntry {
+                name,
+                value,
+                domain,
+                path,
+                expires_at,
+                secure,
+                http_only,
+                same_site,
+                created_at: Utc::now(),
+            })
+        }
+
         pub async fn cleanup(&self) -> Result<()> {
             sqlx::query("DELETE FROM cookies WHERE expires_at < ?")
-                .bind(chrono::Utc::now().to_rfc3339())
+                .bind(Utc::now().to_rfc3339())
                 .execute(&self.pool)
                 .await?;
             Ok(())
         }
+    }
+    
+    struct CookieEntry {
+        name: String,
+        value: String,
+        domain: String,
+        path: String,
+        expires_at: Option<DateTime<Utc>>,
+        secure: bool,
+        http_only: bool,
+        same_site: SameSite,
+        created_at: DateTime<Utc>,
     }
 }
 

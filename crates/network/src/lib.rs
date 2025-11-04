@@ -5,6 +5,9 @@ use std::collections::HashMap;
 use std::time::Duration;
 use url::Url;
 
+pub mod security;
+use security::{create_secure_client_config, SecurityPolicy, check_url_security, check_mixed_content};
+
 // Module implementations are inline below
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
