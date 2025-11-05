@@ -1,0 +1,26 @@
+[package]
+name = "crynn"
+version = "0.1.0"
+description = "Ultra-lightweight browser with Zen-like UI"
+license = "MPL-2.0"
+authors = ["CrynN Team"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.5", features = [ "window-set-title", "window-show", "window-unmaximize", "window-set-size", "window-set-focus", "fs-all", "window-set-decorations", "window-maximize", "dialog-open", "window-close", "window-hide", "window-set-position", "window-set-icon", "window-set-fullscreen", "dialog-save", "window-start-dragging", "window-unminimize", "window-minimize", "path-all", "shell-open"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.35", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+dirs = "5.0"
+uuid = { version = "1.6", features = ["v4"] }
+thiserror = "1.0"
+anyhow = "1.0"
+
+[features]
+# This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
+

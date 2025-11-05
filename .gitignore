@@ -1,40 +1,28 @@
-# Crynn Rust workspace .gitignore
-
-# Compiled files
-/target/
-**/*.rlib
-
-# Executables and logs
-*.exe
+# Logs
+logs
 *.log
-*.out
-*.stackdump
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Temporary files
-*.tmp
-*.swp
-*.bak
-*.old
+node_modules
+dist
+dist-ssr
+*.local
 
-# Rust/Cargo metadata
-**/Cargo.lock
-/.cargo/
-.cargo/
-
-# IDEs and editors
-.vscode/
-.idea/
-*.code-workspace
-
-# macOS metadata
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# Windows metadata
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Tauri
+src-tauri/target
 
-# Build scripts and test output
-build/scripts/*.log
-build/output/
-bench_results/
